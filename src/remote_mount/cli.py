@@ -5,8 +5,8 @@ import click
 from remote_mount import __version__
 from remote_mount.config import MountConfig, get_config_path, load_config, save_config
 from remote_mount.doctor import print_results, prompt_install, run_checks
-from remote_mount.mounts import do_mount, do_unmount, watchdog_loop
-from remote_mount.platform import detect_platform
+from remote_mount.mounts import do_mount, do_unmount, is_mounted, watchdog_loop
+from remote_mount.platform import detect_platform, get_service_manager
 from remote_mount.ssh_config import generate_host_block, write_host_block
 
 
@@ -164,6 +164,61 @@ def remove(name):
     click.echo(f"Mount '{name}' removed.")
 
 
+@cli.command(name="list")
+def list_mounts():
+    """Show all configured mounts with their current status."""
+    config = load_config(get_config_path())
+
+    if not config.mounts:
+        click.echo("No mounts configured. Use 'remote-mount add' to add a mount.")
+        return
+
+    for name, mount_cfg in config.mounts.items():
+        mounted = is_mounted(mount_cfg.resolved_mount_point)
+        status_str = (
+            click.style("mounted", fg="green")
+            if mounted
+            else click.style("not mounted", fg="red")
+        )
+
+        flags = []
+        if mount_cfg.auto_mount:
+            flags.append("auto")
+        if mount_cfg.watchdog:
+            flags.append("watchdog")
+        flags_str = f"  [{', '.join(flags)}]" if flags else ""
+
+        click.echo(f"{name}")
+        click.echo(
+            f"  {mount_cfg.host}:{mount_cfg.remote_path} -> {mount_cfg.mount_point}"
+        )
+        click.echo(f"  {status_str}{flags_str}")
+
+
+@cli.command()
+def status():
+    """Show mount health and watchdog service state."""
+    config = load_config(get_config_path())
+    platform = detect_platform()
+
+    for name, mount_cfg in config.mounts.items():
+        mounted = is_mounted(mount_cfg.resolved_mount_point)
+        if mounted:
+            bullet = click.style("●", fg="green")
+            state = click.style("mounted", fg="green")
+        else:
+            bullet = click.style("○", fg="red")
+            state = click.style("not mounted", fg="red")
+        click.echo(f"{bullet} {name}: {state}  {mount_cfg.mount_point}")
+
+    try:
+        manager = get_service_manager(platform)
+        svc_status = manager.status()
+        click.echo(f"\nWatchdog service: {svc_status}")
+    except NotImplementedError:
+        click.echo("\nWatchdog service: not supported on this platform")
+
+
 @cli.command(name="_watchdog", hidden=True)
 @click.option(
     "--config",
@@ -184,8 +239,6 @@ def service():
 
 def _get_service_manager():
     """Return the appropriate service manager for the current platform."""
-    from remote_mount.platform import get_service_manager  # noqa: PLC0415
-
     return get_service_manager(detect_platform())
 
 

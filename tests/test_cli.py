@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import yaml
 from click.testing import CliRunner
@@ -123,3 +123,89 @@ def test_service_install_raises_when_remote_mount_not_in_path(tmp_path):
     assert result.exit_code != 0
     assert "remote-mount" in result.output
     assert "PATH" in result.output
+
+
+def test_list_command_shows_mounts():
+    """List command shows all configured mounts with status indicators."""
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        config_path = Path("config.yaml")
+        config = Config(
+            mounts={
+                "spark-1": MountConfig(
+                    host="spark-1",
+                    remote_path="/data",
+                    mount_point="~/mnt/spark-1",
+                    auto_mount=True,
+                    watchdog=True,
+                ),
+                "spark-2": MountConfig(
+                    host="spark-2",
+                    remote_path="/home",
+                    mount_point="~/mnt/spark-2",
+                    auto_mount=False,
+                    watchdog=False,
+                ),
+            }
+        )
+        save_config(config, config_path)
+
+        with patch("remote_mount.cli.get_config_path", return_value=config_path):
+            with patch("remote_mount.cli.is_mounted", return_value=False):
+                result = runner.invoke(cli, ["list"])
+
+    assert result.exit_code == 0, f"Exit code {result.exit_code}: {result.output}"
+    assert "spark-1" in result.output
+    assert "spark-2" in result.output
+
+
+def test_status_command():
+    """Status command shows mount health and watchdog service state."""
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        config_path = Path("config.yaml")
+        config = Config(
+            mounts={
+                "test-mount": MountConfig(
+                    host="testhost",
+                    remote_path="/data",
+                    mount_point="~/mnt/test",
+                    auto_mount=True,
+                    watchdog=False,
+                ),
+            }
+        )
+        save_config(config, config_path)
+
+        mock_manager = MagicMock()
+        mock_manager.status.return_value = "inactive"
+
+        with patch("remote_mount.cli.get_config_path", return_value=config_path):
+            with patch("remote_mount.cli.is_mounted", return_value=False):
+                with patch("remote_mount.cli.detect_platform", return_value="linux"):
+                    with patch(
+                        "remote_mount.cli.get_service_manager",
+                        return_value=mock_manager,
+                    ):
+                        result = runner.invoke(cli, ["status"])
+
+    assert result.exit_code == 0, f"Exit code {result.exit_code}: {result.output}"
+    assert "test-mount" in result.output
+
+
+def test_list_empty_config():
+    """List command shows helpful message when no mounts are configured."""
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        config_path = Path("nonexistent_config.yaml")
+
+        with patch("remote_mount.cli.get_config_path", return_value=config_path):
+            result = runner.invoke(cli, ["list"])
+
+    assert result.exit_code == 0, f"Exit code {result.exit_code}: {result.output}"
+    # Should show helpful message referencing no mounts and how to add one
+    output_lower = result.output.lower()
+    assert "no mounts" in output_lower or "add" in output_lower
