@@ -192,12 +192,14 @@ def _get_service_manager():
 def _get_watchdog_cmd() -> str:
     """Return the path to the remote-mount executable."""
     import shutil  # noqa: PLC0415
-    import sys  # noqa: PLC0415
 
     path = shutil.which("remote-mount")
     if path:
         return path
-    return sys.executable
+    raise click.ClickException(
+        "Cannot find 'remote-mount' in PATH. "
+        "Install the package or activate the correct virtualenv before installing the service."
+    )
 
 
 @service.command()

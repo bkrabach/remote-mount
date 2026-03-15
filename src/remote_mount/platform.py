@@ -79,11 +79,11 @@ class ServiceManager(ABC):
 def get_service_manager(platform: Platform) -> ServiceManager:
     """Return the appropriate ServiceManager for the given platform."""
     if platform == "macos":
-        from remote_mount.service_macos import LaunchdManager  # type: ignore[import-not-found]
+        from remote_mount.service import LaunchdManager
 
         return LaunchdManager()
     if platform in ("linux", "wsl2"):
-        from remote_mount.service_linux import SystemdManager  # type: ignore[import-not-found]
+        from remote_mount.service import SystemdManager
 
         return SystemdManager()
     raise NotImplementedError(f"Service manager not supported on platform: {platform}")

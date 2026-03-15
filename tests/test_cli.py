@@ -107,3 +107,19 @@ def test_remove_mount():
             data = yaml.safe_load(f)
 
         assert "myhost" not in data.get("mounts", {})
+
+
+def test_service_install_raises_when_remote_mount_not_in_path(tmp_path):
+    """service install fails with ClickException when 'remote-mount' is not in PATH."""
+    from remote_mount.service import LaunchdManager
+
+    runner = CliRunner()
+    manager = LaunchdManager(plist_dir=tmp_path)
+
+    with patch("remote_mount.cli._get_service_manager", return_value=manager):
+        with patch("shutil.which", return_value=None):
+            result = runner.invoke(cli, ["service", "install"])
+
+    assert result.exit_code != 0
+    assert "remote-mount" in result.output
+    assert "PATH" in result.output

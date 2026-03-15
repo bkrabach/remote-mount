@@ -6,6 +6,7 @@ from remote_mount.platform import (
     detect_platform,
     get_fuse_package,
     get_install_command,
+    get_service_manager,
     get_unmount_command,
 )
 
@@ -85,3 +86,26 @@ class TestUnmountCommand:
             "-uz",
             "/mnt/remote",
         ]
+
+
+class TestGetServiceManager:
+    def test_macos_returns_launchd_manager(self):
+        """get_service_manager('macos') returns a LaunchdManager instance."""
+        from remote_mount.service import LaunchdManager
+
+        manager = get_service_manager("macos")
+        assert isinstance(manager, LaunchdManager)
+
+    def test_linux_returns_systemd_manager(self):
+        """get_service_manager('linux') returns a SystemdManager instance."""
+        from remote_mount.service import SystemdManager
+
+        manager = get_service_manager("linux")
+        assert isinstance(manager, SystemdManager)
+
+    def test_wsl2_returns_systemd_manager(self):
+        """get_service_manager('wsl2') returns a SystemdManager instance."""
+        from remote_mount.service import SystemdManager
+
+        manager = get_service_manager("wsl2")
+        assert isinstance(manager, SystemdManager)
