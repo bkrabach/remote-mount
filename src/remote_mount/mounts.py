@@ -48,7 +48,10 @@ def do_unmount(mount_point: str, platform: Platform) -> str | None:
     Returns None on success, or an error string on failure.
     """
     cmd = get_unmount_command(platform, mount_point)
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        return "unmount timed out after 10 seconds"
     if result.returncode != 0:
         return result.stderr or f"unmount exited with code {result.returncode}"
     return None

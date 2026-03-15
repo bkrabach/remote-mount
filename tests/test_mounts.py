@@ -1,5 +1,6 @@
 """Tests for mount/unmount operations."""
 
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -93,6 +94,14 @@ class TestDoUnmount:
         mock_run.assert_called_once()
         cmd = mock_run.call_args[0][0]
         assert cmd == ["fusermount", "-uz", "/mnt/remote"]
+
+    def test_returns_error_on_timeout(self):
+        with patch("remote_mount.mounts.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd="umount", timeout=10)
+            result = do_unmount("/mnt/remote", "macos")
+        assert result is not None
+        assert isinstance(result, str)
+        assert "timed out" in result.lower()
 
 
 class TestIsMounted:
