@@ -44,9 +44,8 @@ class TestGenerateHostBlock:
         assert "100.64.1.1" in block
         assert "myserver.local" in block
         # Empty lan_ip should not appear as an empty string address
-        # The address list should only have 2 entries
-        assert "  " not in block.split("ProxyCommand")[1].split("\n")[0] or True
-        # More directly: check that no consecutive spaces indicating empty addr
+        # The address list should only have 2 entries (no double-space from empty addr)
+        # Check that no consecutive spaces indicating empty addr
         proxy_line = next(line for line in block.splitlines() if "ProxyCommand" in line)
         # Empty string should not be in addr list
         assert '""' not in proxy_line

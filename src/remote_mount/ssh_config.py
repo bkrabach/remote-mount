@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 MANAGED_MARKER = "# managed by remote-mount"
 
@@ -44,7 +44,7 @@ def generate_host_block(
     return "\n".join(lines) + "\n"
 
 
-def find_host_block(config_text: str, host: str) -> Optional[HostBlockInfo]:
+def find_host_block(config_text: str, host: str) -> HostBlockInfo | None:
     """Find an SSH Host block by hostname.
 
     Returns HostBlockInfo with:
