@@ -1,10 +1,11 @@
 import click
 
 from remote_mount import __version__
-from remote_mount.config import get_config_path, load_config
+from remote_mount.config import MountConfig, get_config_path, load_config, save_config
 from remote_mount.doctor import print_results, prompt_install, run_checks
 from remote_mount.mounts import do_mount, do_unmount
 from remote_mount.platform import detect_platform
+from remote_mount.ssh_config import generate_host_block, write_host_block
 
 
 @click.group()
@@ -86,3 +87,78 @@ def unmount(name, all_mounts):
             click.echo(f"  Error: {err}", err=True)
         else:
             click.echo(f"  Unmounted {mount_cfg.mount_point}")
+
+
+@cli.command()
+def add():
+    """Interactively configure a new mount."""
+    host = click.prompt("Host")
+    remote_path = click.prompt("Remote path", default="/")
+    mount_point = click.prompt("Mount point", default=f"~/mnt/{host}")
+    auto_mount = click.confirm("Auto mount?", default=True)
+    watchdog = click.confirm("Enable watchdog?", default=False)
+
+    config_path = get_config_path()
+    config = load_config(config_path)
+
+    config.mounts[host] = MountConfig(
+        host=host,
+        remote_path=remote_path,
+        mount_point=mount_point,
+        auto_mount=auto_mount,
+        watchdog=watchdog,
+    )
+
+    # Optionally configure Tailscale failover
+    if click.confirm("Configure Tailscale SSH failover?", default=False):
+        tailscale_ip = click.prompt("Tailscale IP", default="")
+        lan_ip = click.prompt("LAN IP", default="")
+        fqdn = click.prompt("FQDN", default="")
+        user = click.prompt("SSH user")
+        identity_file = click.prompt("Identity file", default="~/.ssh/id_ed25519")
+
+        block = generate_host_block(
+            host=host,
+            user=user,
+            identity_file=identity_file,
+            tailscale_ip=tailscale_ip,
+            lan_ip=lan_ip,
+            fqdn=fqdn,
+        )
+
+        from pathlib import Path
+
+        ssh_config_path = Path.home() / ".ssh" / "config"
+        result = write_host_block(ssh_config_path, host, block)
+        if result == "added":
+            click.echo(f"SSH Host block for '{host}' added to {ssh_config_path}.")
+        elif result == "updated":
+            click.echo(f"SSH Host block for '{host}' updated in {ssh_config_path}.")
+        elif result == "conflict":
+            click.echo(
+                f"Warning: unmanaged SSH Host block for '{host}' already exists in "
+                f"{ssh_config_path}. Not modified.",
+                err=True,
+            )
+
+    save_config(config, config_path)
+    click.echo(f"Mount '{host}' added.")
+
+
+@cli.command()
+@click.argument("name")
+def remove(name):
+    """Remove a configured mount."""
+    config_path = get_config_path()
+    config = load_config(config_path)
+
+    if name not in config.mounts:
+        raise click.ClickException(f"Mount '{name}' not found in config.")
+
+    if not click.confirm(f"Remove mount '{name}'?", default=False):
+        click.echo("Aborted.")
+        return
+
+    del config.mounts[name]
+    save_config(config, config_path)
+    click.echo(f"Mount '{name}' removed.")

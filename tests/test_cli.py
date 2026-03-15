@@ -1,8 +1,11 @@
+from pathlib import Path
 from unittest.mock import patch
 
+import yaml
 from click.testing import CliRunner
 
 from remote_mount.cli import cli
+from remote_mount.config import Config, MountConfig, save_config
 from remote_mount.doctor import CheckResult
 
 
@@ -37,3 +40,70 @@ def test_doctor_command_runs():
     assert "macos" in result.output
     assert "rclone" in result.output
     assert "All checks passed." in result.output
+
+
+def test_add_basic_mount():
+    """Add command creates correct config entries from user input."""
+    runner = CliRunner()
+    # Input sequence:
+    # myhost      -> host
+    # /data       -> remote_path
+    # ~/mnt/myhost -> mount_point
+    # y           -> auto_mount (confirm, default True)
+    # n           -> watchdog (confirm, default False)
+    # n           -> Tailscale? (no)
+    user_input = "myhost\n/data\n~/mnt/myhost\ny\nn\nn\n"
+
+    with runner.isolated_filesystem():
+        config_path = Path("config.yaml")
+        with patch("remote_mount.cli.get_config_path", return_value=config_path):
+            result = runner.invoke(cli, ["add"], input=user_input)
+
+        assert result.exit_code == 0, f"Exit code {result.exit_code}: {result.output}"
+
+        # Verify the config was saved
+        assert config_path.exists(), "Config file was not created"
+        with open(config_path) as f:
+            data = yaml.safe_load(f)
+
+        assert "mounts" in data
+        assert "myhost" in data["mounts"]
+        mount = data["mounts"]["myhost"]
+        assert mount["host"] == "myhost"
+        assert mount["remote_path"] == "/data"
+        assert mount["mount_point"] == "~/mnt/myhost"
+        assert mount["auto_mount"] is True
+        assert mount["watchdog"] is False
+
+
+def test_remove_mount():
+    """Remove command deletes mount entry after confirmation."""
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        config_path = Path("config.yaml")
+
+        # Create initial config with a mount
+        config = Config(
+            mounts={
+                "myhost": MountConfig(
+                    host="myhost",
+                    remote_path="/data",
+                    mount_point="~/mnt/myhost",
+                    auto_mount=True,
+                    watchdog=False,
+                )
+            }
+        )
+        save_config(config, config_path)
+
+        with patch("remote_mount.cli.get_config_path", return_value=config_path):
+            result = runner.invoke(cli, ["remove", "myhost"], input="y\n")
+
+        assert result.exit_code == 0, f"Exit code {result.exit_code}: {result.output}"
+
+        # Verify mount was removed
+        with open(config_path) as f:
+            data = yaml.safe_load(f)
+
+        assert "myhost" not in data.get("mounts", {})
