@@ -158,6 +158,8 @@ def test_list_command_shows_mounts():
     assert result.exit_code == 0, f"Exit code {result.exit_code}: {result.output}"
     assert "spark-1" in result.output
     assert "spark-2" in result.output
+    assert "auto" in result.output
+    assert "watchdog" in result.output
 
 
 def test_status_command():
@@ -193,6 +195,7 @@ def test_status_command():
 
     assert result.exit_code == 0, f"Exit code {result.exit_code}: {result.output}"
     assert "test-mount" in result.output
+    assert "Watchdog service" in result.output
 
 
 def test_list_empty_config():
