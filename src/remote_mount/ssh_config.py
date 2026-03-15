@@ -99,7 +99,9 @@ def write_host_block(config_path: Path, host: str, new_block: str) -> str:
     """
     # Case 1: file does not exist — create it
     if not config_path.exists():
-        config_path.write_text(new_block.rstrip("\n") + "\n", encoding="utf-8")
+        config_path.write_text(
+            MANAGED_MARKER + "\n" + new_block.rstrip("\n") + "\n", encoding="utf-8"
+        )
         return "added"
 
     text = config_path.read_text(encoding="utf-8")
@@ -109,7 +111,7 @@ def write_host_block(config_path: Path, host: str, new_block: str) -> str:
     if info is None:
         separator = "\n" if text and not text.endswith("\n\n") else ""
         config_path.write_text(
-            text + separator + new_block.rstrip("\n") + "\n",
+            text + separator + MANAGED_MARKER + "\n" + new_block.rstrip("\n") + "\n",
             encoding="utf-8",
         )
         return "added"
@@ -126,7 +128,7 @@ def write_host_block(config_path: Path, host: str, new_block: str) -> str:
     before = "".join(lines[:start])
     after = "".join(lines[end + 1 :])
     config_path.write_text(
-        before + new_block.rstrip("\n") + "\n" + after,
+        before + MANAGED_MARKER + "\n" + new_block.rstrip("\n") + "\n" + after,
         encoding="utf-8",
     )
     return "updated"

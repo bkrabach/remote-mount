@@ -98,11 +98,12 @@ class LaunchdManager(ServiceManager):
         """Return output of launchctl print for the service."""
         result = subprocess.run(
             ["launchctl", "print", f"gui/{self._uid}/{LABEL}"],
-            check=True,
             capture_output=True,
             text=True,
         )
-        return result.stdout
+        if result.returncode == 0:
+            return result.stdout
+        return "Service not loaded"
 
 
 class SystemdManager(ServiceManager):

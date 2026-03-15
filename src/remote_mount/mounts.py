@@ -25,11 +25,12 @@ class WatchdogState:
 
 def build_rclone_command(mount: MountConfig, rclone: RcloneConfig) -> list[str]:
     """Build the rclone mount command for a given mount and rclone config."""
+    mount_point = str(Path(mount.mount_point).expanduser())
     cmd = [
         "rclone",
         "mount",
         f":sftp:{mount.remote_path}",
-        mount.mount_point,
+        mount_point,
         "--sftp-host",
         mount.host,
         "--vfs-cache-mode",
@@ -47,7 +48,7 @@ def do_mount(mount: MountConfig, rclone: RcloneConfig) -> str | None:
 
     Returns None on success, or an error string on failure.
     """
-    Path(mount.mount_point).mkdir(parents=True, exist_ok=True)
+    Path(mount.mount_point).expanduser().mkdir(parents=True, exist_ok=True)
     cmd = build_rclone_command(mount, rclone)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -60,6 +61,7 @@ def do_unmount(mount_point: str, platform: Platform) -> str | None:
 
     Returns None on success, or an error string on failure.
     """
+    mount_point = str(Path(mount_point).expanduser())
     cmd = get_unmount_command(platform, mount_point)
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
@@ -73,10 +75,10 @@ def do_unmount(mount_point: str, platform: Platform) -> str | None:
 def is_mounted(mount_point: str) -> bool:
     """Check if a mount point is mounted and responsive."""
     try:
-        p = Path(mount_point)
+        p = Path(mount_point).expanduser()
         if not p.exists():
             return False
-        os.stat(mount_point)
+        os.stat(str(p))
         list(p.iterdir())
         return True
     except OSError:

@@ -110,11 +110,13 @@ class TestWriteHostBlock:
             "Host other\n    User bob\n\n",
             encoding="utf-8",
         )
-        new_block = f"{MANAGED_MARKER}\nHost myserver\n    User alice\n"
+        # new_block is just the block content — write_host_block prepends the marker
+        new_block = "Host myserver\n    User alice\n"
         result = write_host_block(config_path, "myserver", new_block)
         assert result == "added"
         content = config_path.read_text(encoding="utf-8")
         assert "Host myserver" in content
+        assert MANAGED_MARKER in content
         assert "Host other" in content  # original preserved
 
     def test_update_managed_block(self, tmp_path):
@@ -126,7 +128,8 @@ class TestWriteHostBlock:
             f"Host myserver\n    User alice\n    IdentityFile ~/.ssh/old_key\n\n"
         )
         config_path.write_text(original, encoding="utf-8")
-        new_block = f"{MANAGED_MARKER}\nHost myserver\n    User alice\n    IdentityFile ~/.ssh/new_key\n"
+        # new_block is just the block content — write_host_block prepends the marker
+        new_block = "Host myserver\n    User alice\n    IdentityFile ~/.ssh/new_key\n"
         result = write_host_block(config_path, "myserver", new_block)
         assert result == "updated"
         content = config_path.read_text(encoding="utf-8")
@@ -141,7 +144,8 @@ class TestWriteHostBlock:
             "Host myserver\n    User alice\n    IdentityFile ~/.ssh/manual_key\n\n"
         )
         config_path.write_text(original, encoding="utf-8")
-        new_block = f"{MANAGED_MARKER}\nHost myserver\n    User alice\n    IdentityFile ~/.ssh/new_key\n"
+        # new_block is just the block content — write_host_block prepends the marker
+        new_block = "Host myserver\n    User alice\n    IdentityFile ~/.ssh/new_key\n"
         result = write_host_block(config_path, "myserver", new_block)
         assert result == "conflict"
         # File should be unchanged
@@ -152,10 +156,38 @@ class TestWriteHostBlock:
         """Creates config file and writes block when file does not exist; returns 'added'."""
         config_path = tmp_path / "ssh_config"
         assert not config_path.exists()
-        new_block = f"{MANAGED_MARKER}\nHost myserver\n    User alice\n"
+        # new_block is just the block content — write_host_block prepends the marker
+        new_block = "Host myserver\n    User alice\n"
         result = write_host_block(config_path, "myserver", new_block)
         assert result == "added"
         assert config_path.exists()
         content = config_path.read_text(encoding="utf-8")
         assert "Host myserver" in content
         assert MANAGED_MARKER in content
+
+    def test_round_trip_add_then_update_returns_updated(self, tmp_path):
+        """Second write_host_block call returns 'updated', not 'conflict' (marker round-trip)."""
+        config_path = tmp_path / "ssh_config"
+        # new_block contains only the block content — no MANAGED_MARKER prepended by caller
+        block = "Host myserver\n    User alice\n    IdentityFile ~/.ssh/id_ed25519\n"
+
+        # First call: file does not exist — should add and write marker
+        result1 = write_host_block(config_path, "myserver", block)
+        assert result1 == "added"
+
+        # After adding, the file must contain the MANAGED_MARKER so the block is
+        # recognised as managed on the next call
+        content_after_add = config_path.read_text(encoding="utf-8")
+        assert MANAGED_MARKER in content_after_add, (
+            "MANAGED_MARKER must be written on first add so subsequent calls recognise it"
+        )
+
+        # Second call: managed block already exists — must return 'updated', not 'conflict'
+        updated_block = (
+            "Host myserver\n    User alice\n    IdentityFile ~/.ssh/new_key\n"
+        )
+        result2 = write_host_block(config_path, "myserver", updated_block)
+        assert result2 == "updated", (
+            f"Expected 'updated' on second write but got {result2!r}; "
+            "MANAGED_MARKER was probably missing after the first write"
+        )

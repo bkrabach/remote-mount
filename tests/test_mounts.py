@@ -104,6 +104,23 @@ class TestDoUnmount:
         assert "timed out" in result.lower()
 
 
+class TestTildeExpansion:
+    def test_build_rclone_command_expands_tilde_in_mount_point(self):
+        """build_rclone_command expands ~ to the real home directory, not literal ~."""
+        from pathlib import Path
+
+        mount = MountConfig(host="myserver.example.com", mount_point="~/mnt/test")
+        rclone = RcloneConfig()
+        cmd = build_rclone_command(mount, rclone)
+        home = str(Path.home())
+        # The command must not contain the raw tilde character
+        assert "~" not in cmd, f"Literal ~ found in command: {cmd}"
+        # The expanded home path must be present
+        assert f"{home}/mnt/test" in cmd, (
+            f"Expected expanded path {home}/mnt/test in command: {cmd}"
+        )
+
+
 class TestIsMounted:
     def test_mounted_and_responsive(self, tmp_path):
         test_file = tmp_path / "test.txt"

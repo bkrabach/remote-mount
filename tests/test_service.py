@@ -1,7 +1,7 @@
 """Tests for service management (LaunchdManager and SystemdManager)."""
 
 import os
-from unittest.mock import call, patch
+from unittest.mock import MagicMock, call, patch
 from xml.etree import ElementTree
 
 from remote_mount.service import LABEL, UNIT_NAME, LaunchdManager, SystemdManager
@@ -86,6 +86,23 @@ class TestLaunchdManager:
         mock_run.assert_called_once_with(
             ["launchctl", "bootout", f"gui/{uid}/{LABEL}"],
             check=True,
+        )
+
+    def test_status_returns_string_when_service_not_loaded(self, tmp_path):
+        """status() returns a descriptive string when launchctl exits non-zero (not raises)."""
+        manager = LaunchdManager(plist_dir=tmp_path)
+        mock_result = MagicMock(returncode=1, stdout="", stderr="No such process")
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            result = manager.status()
+
+        # Must not raise — must return a string
+        assert isinstance(result, str)
+        assert len(result) > 0
+        # subprocess.run should NOT be called with check=True
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs.get("check", False) is False, (
+            "status() must not pass check=True — that raises CalledProcessError when stopped"
         )
 
 
