@@ -232,6 +232,34 @@ def _watchdog_cmd(config_path):
     watchdog_loop(path)
 
 
+@cli.group(invoke_without_command=True)
+@click.pass_context
+def config(ctx):
+    """Manage configuration file."""
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(edit)
+
+
+@config.command()
+def path():
+    """Print the path to the config file."""
+    click.echo(get_config_path())
+
+
+@config.command()
+def edit():
+    """Open config file in $EDITOR."""
+    config_path = get_config_path()
+    if not config_path.exists():
+        click.echo("No config file found. Run 'remote-mount add' to create one.")
+        return
+
+    content = config_path.read_text()
+    new_content = click.edit(content, extension=".yaml")
+    if new_content is not None and new_content != content:
+        config_path.write_text(new_content)
+
+
 @cli.group()
 def service():
     """Manage the remote-mount watchdog background service."""

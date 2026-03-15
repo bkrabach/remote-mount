@@ -212,3 +212,39 @@ def test_list_empty_config():
     # Should show helpful message referencing no mounts and how to add one
     output_lower = result.output.lower()
     assert "no mounts" in output_lower or "add" in output_lower
+
+
+def test_config_path_command():
+    """config path prints the config file path."""
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        config_path = Path("config.yaml")
+
+        with patch("remote_mount.cli.get_config_path", return_value=config_path):
+            result = runner.invoke(cli, ["config", "path"])
+
+    assert result.exit_code == 0, f"Exit code {result.exit_code}: {result.output}"
+    assert str(config_path) in result.output
+
+
+def test_config_edit_opens_editor():
+    """config edit opens the config file in $EDITOR with its current contents."""
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        config_path = Path("config.yaml")
+        config_content = "rclone: rclone\nmounts: {}\n"
+        config_path.write_text(config_content)
+
+        with patch("remote_mount.cli.get_config_path", return_value=config_path):
+            with patch("click.edit", return_value=None) as mock_edit:
+                result = runner.invoke(cli, ["config", "edit"])
+
+    assert result.exit_code == 0, f"Exit code {result.exit_code}: {result.output}"
+    mock_edit.assert_called_once()
+    call_args = mock_edit.call_args
+    # First positional arg should be the config file contents
+    assert config_content in call_args[0][0]
+    # extension keyword arg should be '.yaml'
+    assert call_args[1].get("extension") == ".yaml"
