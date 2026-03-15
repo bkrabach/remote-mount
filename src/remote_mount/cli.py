@@ -186,13 +186,13 @@ def list_mounts():
             flags.append("auto")
         if mount_cfg.watchdog:
             flags.append("watchdog")
-        flags_str = f"  [{', '.join(flags)}]" if flags else ""
+        flags_str = f"[{', '.join(flags)}]" if flags else ""
 
         click.echo(f"{name}")
         click.echo(
             f"  {mount_cfg.host}:{mount_cfg.remote_path} -> {mount_cfg.mount_point}"
         )
-        click.echo(f"  {status_str}{flags_str}")
+        click.echo(f"  {status_str}  {flags_str}".rstrip())
 
 
 @cli.command()
