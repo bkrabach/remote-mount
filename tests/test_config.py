@@ -129,9 +129,7 @@ class TestLoadConfig:
         config = load_config(config_path)
         mount = config.mounts["server"]
         assert mount.mount_point == "~/mounts/server"
-        assert mount.resolved_mount_point == str(
-            Path.home() / "mounts" / "server"
-        )
+        assert mount.resolved_mount_point == str(Path.home() / "mounts" / "server")
 
 
 class TestSaveConfig:
