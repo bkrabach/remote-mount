@@ -4,7 +4,7 @@ from pathlib import Path
 from remote_mount import __version__
 from remote_mount.config import MountConfig, get_config_path, load_config, save_config
 from remote_mount.doctor import print_results, prompt_install, run_checks
-from remote_mount.mounts import do_mount, do_unmount
+from remote_mount.mounts import do_mount, do_unmount, watchdog_loop
 from remote_mount.platform import detect_platform
 from remote_mount.ssh_config import generate_host_block, write_host_block
 
@@ -161,3 +161,16 @@ def remove(name):
     del config.mounts[name]
     save_config(config, config_path)
     click.echo(f"Mount '{name}' removed.")
+
+
+@cli.command(name="_watchdog", hidden=True)
+@click.option(
+    "--config",
+    "config_path",
+    default=None,
+    help="Path to config file (defaults to standard location).",
+)
+def _watchdog_cmd(config_path):
+    """[Internal] Run the watchdog health-check loop (service entry point)."""
+    path = Path(config_path) if config_path else get_config_path()
+    watchdog_loop(path)
