@@ -1,5 +1,6 @@
-import click
 from pathlib import Path
+
+import click
 
 from remote_mount import __version__
 from remote_mount.config import MountConfig, get_config_path, load_config, save_config
@@ -174,3 +175,59 @@ def _watchdog_cmd(config_path):
     """[Internal] Run the watchdog health-check loop (service entry point)."""
     path = Path(config_path) if config_path else get_config_path()
     watchdog_loop(path)
+
+
+@cli.group()
+def service():
+    """Manage the remote-mount watchdog background service."""
+
+
+def _get_service_manager():
+    """Return the appropriate service manager for the current platform."""
+    from remote_mount.platform import get_service_manager  # noqa: PLC0415
+
+    return get_service_manager(detect_platform())
+
+
+def _get_watchdog_cmd() -> str:
+    """Return the path to the remote-mount executable."""
+    import shutil  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+
+    path = shutil.which("remote-mount")
+    if path:
+        return path
+    return sys.executable
+
+
+@service.command()
+def install():
+    """Install the watchdog as a background service."""
+    manager = _get_service_manager()
+    watchdog_cmd = _get_watchdog_cmd()
+    name = manager.install(watchdog_cmd)
+    click.echo(f"Service '{name}' installed.")
+
+
+@service.command()
+def start():
+    """Start the watchdog background service."""
+    manager = _get_service_manager()
+    manager.start()
+    click.echo("Service started.")
+
+
+@service.command()
+def stop():
+    """Stop the watchdog background service."""
+    manager = _get_service_manager()
+    manager.stop()
+    click.echo("Service stopped.")
+
+
+@service.command()
+def uninstall():
+    """Uninstall the watchdog background service."""
+    manager = _get_service_manager()
+    manager.uninstall()
+    click.echo("Service uninstalled.")
