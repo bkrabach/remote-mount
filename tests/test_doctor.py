@@ -85,3 +85,13 @@ class TestCheckFuse:
         assert isinstance(result, CheckResult)
         assert result.passed is True
         assert result.name == "fuse"
+
+    def test_fuse_missing_linux(self):
+        """check_fuse returns failing CheckResult with apt install cmd when fuse absent on Linux."""
+        with patch("shutil.which", return_value=None):
+            result = check_fuse("linux")
+
+        assert isinstance(result, CheckResult)
+        assert result.passed is False
+        assert result.name == "fuse"
+        assert "fuse3" in result.install_cmd
