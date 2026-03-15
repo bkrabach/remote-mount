@@ -1,4 +1,5 @@
 import click
+from pathlib import Path
 
 from remote_mount import __version__
 from remote_mount.config import MountConfig, get_config_path, load_config, save_config
@@ -125,8 +126,6 @@ def add():
             lan_ip=lan_ip,
             fqdn=fqdn,
         )
-
-        from pathlib import Path
 
         ssh_config_path = Path.home() / ".ssh" / "config"
         result = write_host_block(ssh_config_path, host, block)
