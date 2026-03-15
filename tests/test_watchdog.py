@@ -27,7 +27,9 @@ class TestWatchdogTick:
         state = WatchdogState(backoff=60, action="mount_failed")
 
         with patch("remote_mount.mounts.is_mounted", return_value=True):
-            watchdog_tick(mount, state, rclone, "macos", backoff_base=5, backoff_max=300)
+            watchdog_tick(
+                mount, state, rclone, "macos", backoff_base=5, backoff_max=300
+            )
 
         assert state.action == "healthy"
         assert state.backoff == 5
@@ -44,7 +46,9 @@ class TestWatchdogTick:
             patch("remote_mount.mounts.check_host_reachable", return_value=True),
             patch("remote_mount.mounts.do_mount", return_value=None),
         ):
-            watchdog_tick(mount, state, rclone, "macos", backoff_base=5, backoff_max=300)
+            watchdog_tick(
+                mount, state, rclone, "macos", backoff_base=5, backoff_max=300
+            )
 
         assert state.action == "remounted"
         assert state.backoff == 5
@@ -60,34 +64,65 @@ class TestWatchdogTick:
             patch("remote_mount.mounts.do_unmount", return_value=None),
             patch("remote_mount.mounts.check_host_reachable", return_value=False),
         ):
-            watchdog_tick(mount, state, rclone, "macos", backoff_base=5, backoff_max=300)
+            watchdog_tick(
+                mount, state, rclone, "macos", backoff_base=5, backoff_max=300
+            )
 
         assert state.action == "unreachable"
         assert state.backoff == 10
 
-    def test_backoff_caps_at_max(self):
-        """Backoff doubles but is capped at backoff_max (200->300, 300->300)."""
+    def test_backoff_caps_200_to_300(self):
+        """Backoff doubles but is capped at backoff_max: 200 -> min(400, 300) = 300."""
         mount = self._make_mount()
         rclone = self._make_rclone()
-
-        # 200 -> min(400, 300) = 300
         state = WatchdogState(backoff=200, action="")
+
         with (
             patch("remote_mount.mounts.is_mounted", return_value=False),
             patch("remote_mount.mounts.do_unmount", return_value=None),
             patch("remote_mount.mounts.check_host_reachable", return_value=False),
         ):
-            watchdog_tick(mount, state, rclone, "macos", backoff_base=5, backoff_max=300)
+            watchdog_tick(
+                mount, state, rclone, "macos", backoff_base=5, backoff_max=300
+            )
 
         assert state.backoff == 300
 
-        # 300 -> min(600, 300) = 300 (stays capped)
-        state2 = WatchdogState(backoff=300, action="")
+    def test_backoff_stays_at_300(self):
+        """Backoff already at max stays capped: 300 -> min(600, 300) = 300."""
+        mount = self._make_mount()
+        rclone = self._make_rclone()
+        state = WatchdogState(backoff=300, action="")
+
         with (
             patch("remote_mount.mounts.is_mounted", return_value=False),
             patch("remote_mount.mounts.do_unmount", return_value=None),
             patch("remote_mount.mounts.check_host_reachable", return_value=False),
         ):
-            watchdog_tick(mount, state2, rclone, "macos", backoff_base=5, backoff_max=300)
+            watchdog_tick(
+                mount, state, rclone, "macos", backoff_base=5, backoff_max=300
+            )
 
-        assert state2.backoff == 300
+        assert state.backoff == 300
+
+    def test_mount_failed_doubles_backoff(self):
+        """When host is reachable but mount fails, action='mount_failed' and backoff doubles."""
+        mount = self._make_mount()
+        rclone = self._make_rclone()
+        state = WatchdogState(backoff=10, action="")
+
+        with (
+            patch("remote_mount.mounts.is_mounted", return_value=False),
+            patch("remote_mount.mounts.do_unmount", return_value=None),
+            patch("remote_mount.mounts.check_host_reachable", return_value=True),
+            patch(
+                "remote_mount.mounts.do_mount",
+                return_value="rclone: connection refused",
+            ),
+        ):
+            watchdog_tick(
+                mount, state, rclone, "macos", backoff_base=5, backoff_max=300
+            )
+
+        assert state.action == "mount_failed"
+        assert state.backoff == 20

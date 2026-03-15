@@ -6,7 +6,7 @@ import logging
 import os
 import subprocess
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from remote_mount.config import MountConfig, RcloneConfig, load_config
@@ -20,7 +20,7 @@ class WatchdogState:
     """Per-mount state for the watchdog health-check loop."""
 
     backoff: int = 5
-    action: str = field(default="")
+    action: str = ""
 
 
 def build_rclone_command(mount: MountConfig, rclone: RcloneConfig) -> list[str]:
@@ -124,7 +124,8 @@ def watchdog_tick(
         return
 
     # Not mounted — clean up stale mount point then check connectivity
-    do_unmount(mount.mount_point, platform)
+    if err := do_unmount(mount.mount_point, platform):
+        logger.debug("watchdog: stale cleanup unmount warning: %s", err)
 
     if not check_host_reachable(mount.host):
         state.action = "unreachable"
@@ -169,7 +170,12 @@ def watchdog_loop(config_path: Path | str) -> None:
     platform = detect_platform()
 
     while True:
-        config = load_config(config_path)
+        try:
+            config = load_config(config_path)
+        except Exception as exc:
+            logger.error("watchdog: failed to load config: %s", exc)
+            time.sleep(30)
+            continue
         watchdog_mounts = {
             name: mount for name, mount in config.mounts.items() if mount.watchdog
         }
