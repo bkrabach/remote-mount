@@ -34,7 +34,9 @@ def check_rclone() -> CheckResult:
         capture_output=True,
         text=True,
     )
-    first_line = result.stdout.splitlines()[0] if result.stdout else "rclone (unknown version)"
+    first_line = (
+        result.stdout.splitlines()[0] if result.stdout else "rclone (unknown version)"
+    )
     return CheckResult(name="rclone", passed=True, detail=first_line)
 
 
@@ -96,7 +98,9 @@ def check_fuse(platform: Platform) -> CheckResult:
     for cmd in ("fusermount3", "fusermount"):
         path = shutil.which(cmd)
         if path:
-            return CheckResult(name="fuse", passed=True, detail=f"{cmd} found at {path}")
+            return CheckResult(
+                name="fuse", passed=True, detail=f"{cmd} found at {path}"
+            )
     return CheckResult(
         name="fuse",
         passed=False,
@@ -118,7 +122,11 @@ def run_checks(platform: Platform) -> list[CheckResult]:
 def print_results(results: list[CheckResult]) -> None:
     """Display check results with colored [PASS]/[FAIL] labels."""
     for r in results:
-        label = click.style("[PASS]", fg="green") if r.passed else click.style("[FAIL]", fg="red")
+        label = (
+            click.style("[PASS]", fg="green")
+            if r.passed
+            else click.style("[FAIL]", fg="red")
+        )
         detail = f"  {r.detail}" if r.detail else ""
         click.echo(f"{label} {r.name}{detail}")
 
