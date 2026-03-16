@@ -30,9 +30,18 @@ def doctor():
             if result.install_cmd:
                 action = prompt_install(result)
                 if action == "auto":
-                    click.echo(f"  Run: {result.install_cmd}")
+                    import subprocess as _sp  # noqa: PLC0415
+
+                    click.echo(f"  Running: {result.install_cmd}")
+                    ret = _sp.run(result.install_cmd, shell=True)
+                    if ret.returncode != 0:
+                        click.echo(
+                            f"  Failed (exit {ret.returncode}). "
+                            f"Try manually: {result.install_cmd}",
+                            err=True,
+                        )
                 elif action == "manual":
-                    click.echo(f"  Manual install: {result.install_cmd}")
+                    click.echo(f"  Run manually: {result.install_cmd}")
     else:
         click.echo("\nAll checks passed.")
 

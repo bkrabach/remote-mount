@@ -214,6 +214,51 @@ def test_list_empty_config():
     assert "no mounts" in output_lower or "add" in output_lower
 
 
+def test_doctor_auto_install_runs_command():
+    """Doctor command actually executes install_cmd when user chooses Yes."""
+    mocked_results = [
+        CheckResult(
+            name="rclone",
+            passed=False,
+            detail="rclone not found",
+            install_cmd="brew install rclone",
+        ),
+    ]
+    runner = CliRunner()
+    with patch("remote_mount.cli.detect_platform", return_value="macos"):
+        with patch("remote_mount.cli.run_checks", return_value=mocked_results):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+                result = runner.invoke(cli, ["doctor"], input="Y\n")
+
+    assert result.exit_code == 0, f"Exit code {result.exit_code}: {result.output}"
+    assert "Running:" in result.output
+    # subprocess.run must have been called with the install command
+    mock_run.assert_called_once_with("brew install rclone", shell=True)
+
+
+def test_doctor_manual_does_not_run_command():
+    """Doctor command prints command but doesn't run it when user chooses manual."""
+    mocked_results = [
+        CheckResult(
+            name="rclone",
+            passed=False,
+            detail="rclone not found",
+            install_cmd="brew install rclone",
+        ),
+    ]
+    runner = CliRunner()
+    with patch("remote_mount.cli.detect_platform", return_value="macos"):
+        with patch("remote_mount.cli.run_checks", return_value=mocked_results):
+            with patch("subprocess.run") as mock_run:
+                result = runner.invoke(cli, ["doctor"], input="m\n")
+
+    assert result.exit_code == 0, f"Exit code {result.exit_code}: {result.output}"
+    assert "Run manually:" in result.output
+    # subprocess.run should NOT have been called
+    mock_run.assert_not_called()
+
+
 def test_config_path_command():
     """config path prints the config file path."""
     runner = CliRunner()
