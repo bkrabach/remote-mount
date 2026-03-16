@@ -20,24 +20,44 @@ class CheckResult:
     install_cmd: str = ""
 
 
-def check_rclone() -> CheckResult:
-    """Check whether rclone is installed and return its version."""
-    if shutil.which("rclone") is None:
-        return CheckResult(
-            name="rclone",
-            passed=False,
-            detail="rclone not found",
-            install_cmd="brew install rclone",
+def check_mount_engine(engine: str, platform: Platform = "linux") -> CheckResult:
+    """Check whether the configured mount engine binary is installed.
+
+    If engine is 'sshfs': checks for the sshfs binary.
+    If engine is 'rclone': checks for the rclone binary and returns its version.
+    """
+    if engine == "rclone":
+        if shutil.which("rclone") is None:
+            return CheckResult(
+                name="rclone",
+                passed=False,
+                detail="rclone not found",
+                install_cmd="brew install rclone",
+            )
+        result = subprocess.run(
+            ["rclone", "version"],
+            capture_output=True,
+            text=True,
         )
-    result = subprocess.run(
-        ["rclone", "version"],
-        capture_output=True,
-        text=True,
-    )
-    first_line = (
-        result.stdout.splitlines()[0] if result.stdout else "rclone (unknown version)"
-    )
-    return CheckResult(name="rclone", passed=True, detail=first_line)
+        first_line = (
+            result.stdout.splitlines()[0]
+            if result.stdout
+            else "rclone (unknown version)"
+        )
+        return CheckResult(name="rclone", passed=True, detail=first_line)
+
+    # engine == "sshfs" (default)
+    if shutil.which("sshfs") is None:
+        install_cmd = (
+            "brew install sshfs" if platform == "macos" else "apt install sshfs"
+        )
+        return CheckResult(
+            name="sshfs",
+            passed=False,
+            detail="sshfs not found",
+            install_cmd=install_cmd,
+        )
+    return CheckResult(name="sshfs", passed=True, detail="sshfs found")
 
 
 def check_ssh_key() -> CheckResult:
@@ -109,10 +129,10 @@ def check_fuse(platform: Platform) -> CheckResult:
     )
 
 
-def run_checks(platform: Platform) -> list[CheckResult]:
+def run_checks(platform: Platform, engine: str = "sshfs") -> list[CheckResult]:
     """Run all prerequisite checks and return the results."""
     return [
-        check_rclone(),
+        check_mount_engine(engine, platform),
         check_ssh_key(),
         check_ssh_agent(),
         check_fuse(platform),

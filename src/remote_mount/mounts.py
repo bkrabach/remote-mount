@@ -53,18 +53,48 @@ def build_rclone_command(
     return cmd
 
 
-def do_mount(
-    mount: MountConfig, rclone: RcloneConfig, platform: Platform = "linux"
-) -> str | None:
-    """Create mount point directory and run rclone mount command.
+def build_sshfs_command(mount: MountConfig, platform: Platform = "linux") -> list[str]:
+    """Build sshfs mount command."""
+    mount_point = str(Path(mount.mount_point).expanduser())
+    remote = f"{mount.host}:{mount.remote_path}"
 
+    opts = [
+        "reconnect",
+        "ServerAliveInterval=15",
+        "ServerAliveCountMax=3",
+    ]
+
+    # macOS-specific options
+    if platform == "macos":
+        opts.extend(["defer_permissions", "follow_symlinks"])
+    # Linux: allow_other requires /etc/fuse.conf to have user_allow_other
+    # so we don't add it by default
+
+    cmd = ["sshfs", remote, mount_point, "-o", ",".join(opts)]
+    return cmd
+
+
+def do_mount(
+    mount: MountConfig,
+    rclone: RcloneConfig,
+    platform: Platform = "linux",
+    engine: str = "sshfs",
+) -> str | None:
+    """Create mount point directory and run mount command.
+
+    Dispatches to sshfs (default) or rclone based on the engine parameter.
     Returns None on success, or an error string on failure.
     """
     Path(mount.mount_point).expanduser().mkdir(parents=True, exist_ok=True)
-    cmd = build_rclone_command(mount, rclone, platform)
+    if engine == "rclone":
+        cmd = build_rclone_command(mount, rclone, platform)
+        engine_label = "rclone"
+    else:
+        cmd = build_sshfs_command(mount, platform)
+        engine_label = "sshfs"
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        return result.stderr or f"rclone exited with code {result.returncode}"
+        return result.stderr or f"{engine_label} exited with code {result.returncode}"
     return None
 
 
@@ -119,6 +149,7 @@ def watchdog_tick(
     platform: Platform,
     backoff_base: int = 5,
     backoff_max: int = 300,
+    engine: str = "sshfs",
 ) -> None:
     """Execute a single watchdog health-check tick for one mount.
 
@@ -147,7 +178,7 @@ def watchdog_tick(
         return
 
     # Host reachable — attempt remount
-    err = do_mount(mount, rclone, platform)
+    err = do_mount(mount, rclone, platform, engine=engine)
     if err:
         state.action = "mount_failed"
         state.backoff = min(state.backoff * 2, backoff_max)
@@ -213,6 +244,7 @@ def watchdog_loop(config_path: Path | str) -> None:
                 platform,
                 backoff_base=config.watchdog.backoff_base,
                 backoff_max=config.watchdog.backoff_max,
+                engine=config.engine,
             )
             if state.action != "healthy":
                 logger.warning(

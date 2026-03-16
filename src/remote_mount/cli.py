@@ -20,8 +20,9 @@ def cli():
 def doctor():
     """Check prerequisites and system readiness."""
     platform = detect_platform()
+    config = load_config(get_config_path())
     click.echo(f"Platform: {platform}\n")
-    results = run_checks(platform)
+    results = run_checks(platform, engine=config.engine)
     print_results(results)
     failures = [r for r in results if not r.passed]
     if failures:
@@ -66,7 +67,7 @@ def mount(name, all_mounts):
 
     for mount_name, mount_cfg in targets:
         click.echo(f"Mounting {mount_name}...")
-        err = do_mount(mount_cfg, rclone, platform)
+        err = do_mount(mount_cfg, rclone, platform, engine=config.engine)
         if err:
             click.echo(f"  Error: {err}", err=True)
         else:

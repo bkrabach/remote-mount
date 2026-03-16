@@ -76,6 +76,7 @@ class Config:
     rclone: RcloneConfig = field(default_factory=RcloneConfig)
     tailscale: TailscaleConfig = field(default_factory=TailscaleConfig)
     watchdog: WatchdogConfig = field(default_factory=WatchdogConfig)
+    engine: str = "sshfs"
 
 
 def _parse_rclone(data: dict[str, Any]) -> RcloneConfig:
@@ -139,6 +140,7 @@ def load_config(config_path: Path) -> Config:
         rclone=rclone,
         tailscale=tailscale,
         watchdog=watchdog,
+        engine=data.get("engine", "sshfs"),
     )
 
 
@@ -165,6 +167,7 @@ def save_config(config: Config, config_path: Path) -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     data: dict[str, Any] = {
+        "engine": config.engine,
         "mounts": {name: _mount_to_dict(m) for name, m in config.mounts.items()},
         "rclone": {
             "cache_mode": config.rclone.cache_mode,

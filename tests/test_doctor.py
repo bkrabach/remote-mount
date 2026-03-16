@@ -2,17 +2,22 @@
 
 from unittest.mock import MagicMock, patch
 
-from remote_mount.doctor import CheckResult, check_fuse, check_rclone, check_ssh_key
+from remote_mount.doctor import (
+    CheckResult,
+    check_fuse,
+    check_mount_engine,
+    check_ssh_key,
+)
 
 
-class TestCheckRclone:
+class TestCheckMountEngine:
     def test_rclone_found(self):
-        """check_rclone returns a passing CheckResult with version when rclone is available."""
+        """check_mount_engine with rclone engine returns passing CheckResult with version."""
         with patch("shutil.which", return_value="/usr/local/bin/rclone"):
             mock_result = MagicMock()
             mock_result.stdout = "rclone v1.65.0\n- os/arch: darwin/arm64\n"
             with patch("subprocess.run", return_value=mock_result):
-                result = check_rclone()
+                result = check_mount_engine("rclone")
 
         assert isinstance(result, CheckResult)
         assert result.passed is True
@@ -20,14 +25,43 @@ class TestCheckRclone:
         assert "1.65.0" in result.detail
 
     def test_rclone_missing(self):
-        """check_rclone returns a failing CheckResult with install_cmd when rclone is absent."""
+        """check_mount_engine with rclone returns failing CheckResult when rclone absent."""
         with patch("shutil.which", return_value=None):
-            result = check_rclone()
+            result = check_mount_engine("rclone")
 
         assert isinstance(result, CheckResult)
         assert result.passed is False
         assert result.name == "rclone"
-        assert result.install_cmd == "brew install rclone"
+        assert "brew install rclone" in result.install_cmd
+
+    def test_sshfs_found_macos(self):
+        """check_mount_engine with sshfs returns passing CheckResult when sshfs is found."""
+        with patch("shutil.which", return_value="/usr/local/bin/sshfs"):
+            result = check_mount_engine("sshfs")
+
+        assert isinstance(result, CheckResult)
+        assert result.passed is True
+        assert result.name == "sshfs"
+
+    def test_sshfs_missing_macos(self):
+        """check_mount_engine with sshfs returns failing CheckResult with brew install_cmd."""
+        with patch("shutil.which", return_value=None):
+            result = check_mount_engine("sshfs", platform="macos")
+
+        assert isinstance(result, CheckResult)
+        assert result.passed is False
+        assert result.name == "sshfs"
+        assert "brew install sshfs" in result.install_cmd
+
+    def test_sshfs_missing_linux(self):
+        """check_mount_engine with sshfs on Linux returns apt install_cmd."""
+        with patch("shutil.which", return_value=None):
+            result = check_mount_engine("sshfs", platform="linux")
+
+        assert isinstance(result, CheckResult)
+        assert result.passed is False
+        assert result.name == "sshfs"
+        assert "apt install sshfs" in result.install_cmd
 
 
 class TestCheckSshKey:

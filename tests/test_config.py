@@ -132,6 +132,41 @@ class TestLoadConfig:
         assert mount.resolved_mount_point == str(Path.home() / "mounts" / "server")
 
 
+class TestEngineField:
+    def test_engine_defaults_to_sshfs(self):
+        """Config.engine defaults to 'sshfs' when not specified."""
+        config = Config()
+        assert config.engine == "sshfs"
+
+    def test_engine_can_be_rclone(self):
+        """Config.engine can be set to 'rclone'."""
+        config = Config(engine="rclone")
+        assert config.engine == "rclone"
+
+    def test_engine_defaults_to_sshfs_when_missing_from_file(self, tmp_path):
+        """load_config returns engine='sshfs' when key is absent from YAML."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("mounts: {}\n")
+        loaded = load_config(config_path)
+        assert loaded.engine == "sshfs"
+
+    def test_engine_round_trips_rclone(self, tmp_path):
+        """save_config writes engine field; load_config reads it back."""
+        config_path = tmp_path / "config.yaml"
+        original = Config(engine="rclone")
+        save_config(original, config_path)
+        loaded = load_config(config_path)
+        assert loaded.engine == "rclone"
+
+    def test_engine_round_trips_sshfs(self, tmp_path):
+        """engine='sshfs' survives save/load round-trip."""
+        config_path = tmp_path / "config.yaml"
+        original = Config(engine="sshfs")
+        save_config(original, config_path)
+        loaded = load_config(config_path)
+        assert loaded.engine == "sshfs"
+
+
 class TestSaveConfig:
     def test_round_trip(self, tmp_path):
         config_path = tmp_path / "config.yaml"

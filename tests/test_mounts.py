@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from remote_mount.config import MountConfig, RcloneConfig
 from remote_mount.mounts import (
     build_rclone_command,
+    build_sshfs_command,
     do_mount,
     do_unmount,
     is_mounted,
@@ -65,6 +66,71 @@ class TestBuildRcloneCommand:
         cmd = build_rclone_command(mount, rclone)
         idx = cmd.index("--sftp-ssh")
         assert cmd[idx + 1] == "ssh spark-1"
+
+
+class TestBuildSshfsCommand:
+    def test_basic_command_structure(self):
+        """build_sshfs_command returns sshfs as the binary with remote and mount_point."""
+        mount = MountConfig(host="myserver.example.com", mount_point="/mnt/remote")
+        cmd = build_sshfs_command(mount)
+        assert cmd[0] == "sshfs"
+        assert "myserver.example.com:/" in cmd
+        assert "/mnt/remote" in cmd
+
+    def test_opts_flag_present(self):
+        """-o option is included in the command."""
+        mount = MountConfig(host="myserver.example.com", mount_point="/mnt/remote")
+        cmd = build_sshfs_command(mount)
+        assert "-o" in cmd
+
+    def test_reconnect_option(self):
+        """reconnect is included in the -o options string."""
+        mount = MountConfig(host="myserver.example.com", mount_point="/mnt/remote")
+        cmd = build_sshfs_command(mount)
+        opts = cmd[cmd.index("-o") + 1]
+        assert "reconnect" in opts
+
+    def test_server_alive_options(self):
+        """ServerAliveInterval and ServerAliveCountMax are in the -o opts."""
+        mount = MountConfig(host="myserver.example.com", mount_point="/mnt/remote")
+        cmd = build_sshfs_command(mount)
+        opts = cmd[cmd.index("-o") + 1]
+        assert "ServerAliveInterval=15" in opts
+        assert "ServerAliveCountMax=3" in opts
+
+    def test_macos_adds_defer_permissions_and_follow_symlinks(self):
+        """macOS platform appends defer_permissions and follow_symlinks to opts."""
+        mount = MountConfig(host="myserver.example.com", mount_point="/mnt/remote")
+        cmd = build_sshfs_command(mount, platform="macos")
+        opts = cmd[cmd.index("-o") + 1]
+        assert "defer_permissions" in opts
+        assert "follow_symlinks" in opts
+
+    def test_linux_does_not_add_macos_opts(self):
+        """Linux platform does NOT include defer_permissions or follow_symlinks."""
+        mount = MountConfig(host="myserver.example.com", mount_point="/mnt/remote")
+        cmd = build_sshfs_command(mount, platform="linux")
+        opts = cmd[cmd.index("-o") + 1]
+        assert "defer_permissions" not in opts
+        assert "follow_symlinks" not in opts
+
+    def test_custom_remote_path(self):
+        """Remote path is embedded in the host:path argument."""
+        mount = MountConfig(
+            host="myserver.example.com",
+            remote_path="/data/share",
+            mount_point="/mnt/share",
+        )
+        cmd = build_sshfs_command(mount)
+        assert "myserver.example.com:/data/share" in cmd
+
+    def test_tilde_expansion(self):
+        """~ in mount_point is expanded to the real home directory."""
+        mount = MountConfig(host="myserver.example.com", mount_point="~/mnt/test")
+        cmd = build_sshfs_command(mount)
+        home = str(Path.home())
+        assert "~" not in cmd
+        assert f"{home}/mnt/test" in cmd
 
 
 class TestDoMount:
