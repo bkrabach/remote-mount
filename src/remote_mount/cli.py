@@ -53,6 +53,7 @@ def mount(name, all_mounts):
     """Mount remote filesystem(s)."""
     config = load_config(get_config_path())
     rclone = config.rclone
+    platform = detect_platform()
 
     if not name and not all_mounts:
         raise click.UsageError("Provide a mount NAME or use --all.")
@@ -65,7 +66,7 @@ def mount(name, all_mounts):
 
     for mount_name, mount_cfg in targets:
         click.echo(f"Mounting {mount_name}...")
-        err = do_mount(mount_cfg, rclone)
+        err = do_mount(mount_cfg, rclone, platform)
         if err:
             click.echo(f"  Error: {err}", err=True)
         else:

@@ -23,16 +23,26 @@ class WatchdogState:
     action: str = ""
 
 
-def build_rclone_command(mount: MountConfig, rclone: RcloneConfig) -> list[str]:
-    """Build the rclone mount command for a given mount and rclone config."""
+def build_rclone_command(
+    mount: MountConfig, rclone: RcloneConfig, platform: Platform = "linux"
+) -> list[str]:
+    """Build the rclone mount command for a given mount and rclone config.
+
+    Uses ``--sftp-ssh`` so rclone delegates SSH to the system binary, which
+    reads ``~/.ssh/config`` (including ProxyCommand / Tailscale failover).
+
+    On macOS, uses ``nfsmount`` instead of ``mount`` because Homebrew's rclone
+    does not ship the FUSE-based ``mount`` subcommand.
+    """
     mount_point = str(Path(mount.mount_point).expanduser())
+    subcmd = "nfsmount" if platform == "macos" else "mount"
     cmd = [
         "rclone",
-        "mount",
+        subcmd,
         f":sftp:{mount.remote_path}",
         mount_point,
-        "--sftp-host",
-        mount.host,
+        "--sftp-ssh",
+        f"ssh {mount.host}",
         "--vfs-cache-mode",
         rclone.cache_mode,
         "--buffer-size",
@@ -43,13 +53,15 @@ def build_rclone_command(mount: MountConfig, rclone: RcloneConfig) -> list[str]:
     return cmd
 
 
-def do_mount(mount: MountConfig, rclone: RcloneConfig) -> str | None:
+def do_mount(
+    mount: MountConfig, rclone: RcloneConfig, platform: Platform = "linux"
+) -> str | None:
     """Create mount point directory and run rclone mount command.
 
     Returns None on success, or an error string on failure.
     """
     Path(mount.mount_point).expanduser().mkdir(parents=True, exist_ok=True)
-    cmd = build_rclone_command(mount, rclone)
+    cmd = build_rclone_command(mount, rclone, platform)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         return result.stderr or f"rclone exited with code {result.returncode}"
@@ -135,7 +147,7 @@ def watchdog_tick(
         return
 
     # Host reachable — attempt remount
-    err = do_mount(mount, rclone)
+    err = do_mount(mount, rclone, platform)
     if err:
         state.action = "mount_failed"
         state.backoff = min(state.backoff * 2, backoff_max)

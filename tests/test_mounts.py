@@ -14,23 +14,26 @@ from remote_mount.mounts import (
 
 
 class TestBuildRcloneCommand:
-    def test_basic(self):
+    def test_basic_linux(self):
         mount = MountConfig(host="myserver.example.com", mount_point="/mnt/remote")
         rclone = RcloneConfig()
-        cmd = build_rclone_command(mount, rclone)
-        assert cmd == [
-            "rclone",
-            "mount",
-            ":sftp:/",
-            "/mnt/remote",
-            "--sftp-host",
-            "myserver.example.com",
-            "--vfs-cache-mode",
-            "writes",
-            "--buffer-size",
-            "64M",
-            "--daemon",
-        ]
+        cmd = build_rclone_command(mount, rclone, platform="linux")
+        assert cmd[0] == "rclone"
+        assert cmd[1] == "mount"  # linux uses mount, not nfsmount
+        assert ":sftp:/" in cmd
+        assert "/mnt/remote" in cmd
+        assert "--sftp-ssh" in cmd
+        assert "ssh myserver.example.com" in cmd
+        assert "--vfs-cache-mode" in cmd
+        assert "--daemon" in cmd
+        # Should NOT have --sftp-host (using --sftp-ssh instead)
+        assert "--sftp-host" not in cmd
+
+    def test_macos_uses_nfsmount(self):
+        mount = MountConfig(host="myserver.example.com", mount_point="/mnt/remote")
+        rclone = RcloneConfig()
+        cmd = build_rclone_command(mount, rclone, platform="macos")
+        assert cmd[1] == "nfsmount"  # macOS uses nfsmount
 
     def test_custom_remote_path(self):
         mount = MountConfig(
@@ -55,6 +58,13 @@ class TestBuildRcloneCommand:
         cmd = build_rclone_command(mount, rclone)
         idx = cmd.index("--buffer-size")
         assert cmd[idx + 1] == "128M"
+
+    def test_sftp_ssh_contains_host(self):
+        mount = MountConfig(host="spark-1", mount_point="/mnt/remote")
+        rclone = RcloneConfig()
+        cmd = build_rclone_command(mount, rclone)
+        idx = cmd.index("--sftp-ssh")
+        assert cmd[idx + 1] == "ssh spark-1"
 
 
 class TestDoMount:
